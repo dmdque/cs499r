@@ -3,9 +3,12 @@ import pickle
 
 import numpy as np
 import tensorflow as tf
+import matplotlib.pyplot as plt
 
 amat = imp.load_source('amat', '../amat.py')
 from amat import AMat
+spatial_transformer = imp.load_source('spatial_transformer', '../../spatial-transformer-tensorflow/spatial_transformer.py')
+from spatial_transformer import transformer
 
 
 def augment_label(y_in):
@@ -32,11 +35,6 @@ def load_data():
     return x_train, y_train, x_test, y_test
 
 
-# regular mnist
-# from tensorflow.examples.tutorials.mnist import input_data
-# mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
-
-
 class SpatiallyInvariantNetwork:
     def __init__(self):
         """Initializes the model and loads variables from file."""
@@ -45,7 +43,7 @@ class SpatiallyInvariantNetwork:
         x = tf.placeholder(tf.float32, shape=[None, 784])
         # note y_ isn't actually used for training
         y_ = tf.placeholder(tf.float32, shape=[None, 10])
-        transform = tf.Variable(tf.convert_to_tensor(np.eye(784), dtype=tf.float32))
+        transform = tf.Variable(initial_value=np.identity(784), dtype=tf.float32)
         W = tf.Variable(tf.zeros([784, 10]))
         b = tf.Variable(tf.zeros([10]))
 
@@ -95,16 +93,57 @@ class SpatiallyInvariantNetwork:
         correct_prediction = tf.equal(tf.argmax(y,1), tf.argmax(y_,1))
         accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
         print(accuracy.eval(feed_dict={self.x: [x_test], self.y_: [y_test]}))
+        print y.eval(feed_dict={self.x: [x_test], self.y_: [y_test]})
         print self.sess.run(self.transform)
 
 
-sin = SpatiallyInvariantNetwork()
-# x_train, y_train, x_test, y_test = load_data()
-# ex = (x_test[0], y_test[0])
+# sin = SpatiallyInvariantNetwork()
+# # x_train, y_train, x_test, y_test = load_data()
+# # ex = (x_test[0], y_test[0])
 ex = None
 with open('objs.pickle') as f:
     ex = pickle.load(f)
-ex = ex[0]  # list
 
-sin.run(ex[0], ex[1])
-sin.evaluate(ex[0], ex[1])
+# T = np.diag(np.random.rand(784))
+# xt = np.matrix(ex[0]) * T
+# plt.imshow(xt.reshape(28, 28), cmap='gray', interpolation='none')
+# plt.show()
+
+# # sin.run(ex[0], ex[1])
+# sin.evaluate(ex[0], ex[1])
+
+
+
+im = ex[0]
+im = im.reshape(1, 28, 28, 1)
+
+# %% Let the output size of the transformer be half the image size.
+out_size = (28, 28)
+
+# %% Simulate batch
+batch = np.append(im, im, axis=0)
+batch = np.append(batch, im, axis=0)
+num_batch = 3
+
+x = tf.placeholder(tf.float32, [None, 28, 28, 1])
+x = tf.cast(batch, 'float32')
+
+# %% Create localisation network and convolutional layer
+with tf.variable_scope('spatial_transformer_0'):
+
+    # %% Zoom into the image
+    initial = np.array([[1, -.6763, 0], [0, 1, 0]])
+    initial = initial.astype('float32')
+    initial = initial.flatten()
+
+    theta = tf.Variable(initial_value=initial, name='theta')
+    h_fc1 = tf.zeros([num_batch, 6]) + theta
+    h_trans = transformer(x, h_fc1, out_size)
+
+# %% Run session
+sess = tf.Session()
+sess.run(tf.initialize_all_variables())
+y = sess.run(h_trans, feed_dict={x: batch})
+
+plt.imshow(y[0].reshape(28, 28), cmap='gray', interpolation='none')
+plt.show()
