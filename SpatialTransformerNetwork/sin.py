@@ -113,37 +113,25 @@ with open('objs.pickle') as f:
 # sin.evaluate(ex[0], ex[1])
 
 
-
 im = ex[0]
-im = im.reshape(1, 28, 28, 1)
-
-# %% Let the output size of the transformer be half the image size.
-out_size = (28, 28)
-
-# %% Simulate batch
-batch = np.append(im, im, axis=0)
-batch = np.append(batch, im, axis=0)
-num_batch = 3
+im = im.reshape(1, 28, 28, 1)  # why this shape?
 
 x = tf.placeholder(tf.float32, [None, 28, 28, 1])
-x = tf.cast(batch, 'float32')
-
-# %% Create localisation network and convolutional layer
+x = tf.cast(im, 'float32')
+# Create localisation network and convolutional layer
 with tf.variable_scope('spatial_transformer_0'):
-
-    # %% Zoom into the image
     initial = np.array([[1, -.6763, 0], [0, 1, 0]])
     initial = initial.astype('float32')
     initial = initial.flatten()
 
     theta = tf.Variable(initial_value=initial, name='theta')
-    h_fc1 = tf.zeros([num_batch, 6]) + theta
-    h_trans = transformer(x, h_fc1, out_size)
+    h_fc1 = tf.zeros([1, 6]) + theta  # takes advantage of TF's broadcasting
+    h_trans = transformer(x, h_fc1, (28, 28))
 
-# %% Run session
+# Run session
 sess = tf.Session()
 sess.run(tf.initialize_all_variables())
-y = sess.run(h_trans, feed_dict={x: batch})
+y = sess.run(h_trans, feed_dict={x: im})
 
 plt.imshow(y[0].reshape(28, 28), cmap='gray', interpolation='none')
 plt.show()
