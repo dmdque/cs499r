@@ -46,7 +46,7 @@ class SpatiallyInvariantNetwork:
 
         # Create localisation network and convolutional layer
         with tf.variable_scope('spatial_transformer_0'):
-            initial = np.array([[1, -0.5, 0], [0, 1, 0]])
+            initial = np.array([[1, 0, 0], [0, 1, 0]])
             initial = initial.astype('float32')
             initial = initial.flatten()
 
@@ -104,7 +104,15 @@ class SpatiallyInvariantNetwork:
         h_trans = self.h_trans
         theta = self.theta
         transformed_x = self.transformed_x
+        sess = self.sess
         print 'evaluate'
+
+        # reset theta before testing again
+        initial = np.array([[1, 0, 0], [0, 1, 0]])
+        initial = initial.astype('float32')
+        initial = initial.flatten()
+        assign_op = theta.assign(initial)
+        self.sess.run(assign_op)
 
         # Intermediate values:
         # x_prime
@@ -136,26 +144,30 @@ class SpatiallyInvariantNetwork:
                 x: x_test,
                 y_: [y_test],
             })
-        x_prime = self.sess.run(h_trans, feed_dict={x: x_test})
 
-        plt.imshow(x_prime.reshape((28, 28)), cmap='gray', interpolation='none')
-        plt.title('Predicted value: {}'.format(y_out))
-        plt.show()
+        # x_prime = self.sess.run(h_trans, feed_dict={x: x_test})
+        # f, axarr = plt.subplots(2, sharey=True)
+        # axarr[0].imshow(x_test.reshape((28, 28)), cmap='gray', interpolation='none')
+        # axarr[1].imshow(x_prime.reshape((28, 28)), cmap='gray', interpolation='none')
+        # plt.title('Actual value: {}, Predicted value: {}'.format(np.argmax(y_test), y_out))
+        # plt.show()
 
         correct_prediction = tf.equal(tf.argmax(y,1), tf.argmax(y_,1))
-        print self.sess.run(
+        is_correct = self.sess.run(
             correct_prediction,
             feed_dict={
                 x: x_test,
                 y_: [y_test],
             })
+        is_correct = is_correct[0]
         # accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
         # print(accuracy.eval(feed_dict={self.x: [x_test], self.y_: [y_test]}))
         # print y.eval(feed_dict={self.x: [x_test], self.y_: [y_test]})
+        return is_correct
 
 
 sin = SpatiallyInvariantNetwork()
-# x_train, y_train, x_test, y_test = load_data()
+x_train, y_train, x_test, y_test = load_data()
 # ex = (x_test[0], y_test[0])
 ex = None
 with open('objs.pickle') as f:
@@ -170,4 +182,12 @@ with open('objs.pickle') as f:
 # plt.show()
 
 # # sin.run(ex[0], ex[1])
-sin.evaluate(ex[0], ex[1])
+num_correct = 0
+for i in range(len(x_test)):
+    if sin.evaluate(x_test[i], y_test[i]):
+        num_correct += 1
+
+print 'correct: {} out of {}. {}%'.format(
+    num_correct,
+    len(x_test),
+    float(num_correct) / len(x_test))
