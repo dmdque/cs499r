@@ -46,7 +46,7 @@ class SpatiallyInvariantNetwork:
 
         # Create localisation network and convolutional layer
         with tf.variable_scope('spatial_transformer_0'):
-            initial = np.array([[1, 0, 0], [0, 1, 0]])
+            initial = np.array([[1, -0.5, 0], [0, 1, 0]])
             initial = initial.astype('float32')
             initial = initial.flatten()
 
@@ -57,7 +57,7 @@ class SpatiallyInvariantNetwork:
         W = tf.Variable(tf.zeros([784, 10]))
         b = tf.Variable(tf.zeros([10]))
 
-        transformed_x = tf.placeholder(tf.float32, [None, 784])
+        transformed_x = tf.reshape(h_trans, (1, 784))  # forces batch of size 1
         y = tf.nn.softmax(tf.matmul(transformed_x, W) + b)
         # how to do categorical entropy?
         cross_entropy = tf.reduce_mean(-tf.reduce_sum(y * tf.log(y),
@@ -67,8 +67,8 @@ class SpatiallyInvariantNetwork:
         grads_and_vars = opt.compute_gradients(cross_entropy,
                                                var_list=[theta])
 
-        self.train_step = opt.minimize(cross_entropy)
-        # self.train_step = opt.apply_gradients(grads_and_vars)
+        # train_step = opt.minimize(cross_entropy, var_list=[theta])
+        train_step = opt.apply_gradients(grads_and_vars)
         sess.run(tf.initialize_all_variables())
 
         # load from file
@@ -82,6 +82,8 @@ class SpatiallyInvariantNetwork:
         self.grads_and_vars = grads_and_vars
         self.h_trans = h_trans
         self.transformed_x = transformed_x
+        self.train_step = train_step
+        self.theta = theta
 
 
     def run(self, x_train, y_train):
@@ -100,24 +102,43 @@ class SpatiallyInvariantNetwork:
         y = self.y
         y_ = self.y_
         h_trans = self.h_trans
+        theta = self.theta
         transformed_x = self.transformed_x
         print 'evaluate'
 
-        x_test = x_test.reshape(1, 28, 28, 1)  # why this shape?
+        # Intermediate values:
+        # x_prime
 
-        x_prime = self.sess.run(h_trans, feed_dict={x: x_test})
+        for i in range(10):
+            x_test = x_test.reshape(1, 28, 28, 1)  # why this shape?
 
-        plt.imshow(x_prime.reshape((28, 28)), cmap='gray', interpolation='none')
+            print 'theta', self.sess.run(theta, feed_dict={x: x_test})
+            x_prime = self.sess.run(h_trans, feed_dict={x: x_test})
 
-        x_prime = x_prime.reshape(1, 784)  # this forces batches of size 1
+            x_prime = x_prime.reshape(1, 784)  # this forces batches of size 1
+            print 'y', self.sess.run(
+                y,
+                feed_dict={
+                    x: x_test,
+                    y_: [y_test],
+                })
+
+            self.train_step.run(
+                feed_dict={
+                    x: x_test,
+                    y_: [y_test],
+                })
 
         prediction = tf.argmax(y,1)
         y_out = self.sess.run(
             prediction,
             feed_dict={
-                transformed_x: x_prime,
+                x: x_test,
                 y_: [y_test],
             })
+        x_prime = self.sess.run(h_trans, feed_dict={x: x_test})
+
+        plt.imshow(x_prime.reshape((28, 28)), cmap='gray', interpolation='none')
         plt.title('Predicted value: {}'.format(y_out))
         plt.show()
 
@@ -125,7 +146,7 @@ class SpatiallyInvariantNetwork:
         print self.sess.run(
             correct_prediction,
             feed_dict={
-                transformed_x: x_prime,
+                x: x_test,
                 y_: [y_test],
             })
         # accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
@@ -134,8 +155,8 @@ class SpatiallyInvariantNetwork:
 
 
 sin = SpatiallyInvariantNetwork()
-# # x_train, y_train, x_test, y_test = load_data()
-# # ex = (x_test[0], y_test[0])
+# x_train, y_train, x_test, y_test = load_data()
+# ex = (x_test[0], y_test[0])
 ex = None
 with open('objs.pickle') as f:
     ex = pickle.load(f)
@@ -143,6 +164,9 @@ with open('objs.pickle') as f:
 # T = np.diag(np.random.rand(784))
 # xt = np.matrix(ex[0]) * T
 # plt.imshow(xt.reshape(28, 28), cmap='gray', interpolation='none')
+# plt.show()
+
+# plt.imshow(ex[0].reshape(28, 28), cmap='gray', interpolation='none')
 # plt.show()
 
 # # sin.run(ex[0], ex[1])
