@@ -40,14 +40,24 @@ class SpatiallyInvariantNetwork:
         """Initializes the model and loads variables from file."""
         sess = tf.InteractiveSession()
 
-        x = tf.placeholder(tf.float32, shape=[None, 784])
+        x = tf.placeholder(tf.float32, [None, 28, 28, 1])
         # note y_ isn't actually used for training
         y_ = tf.placeholder(tf.float32, shape=[None, 10])
-        transform = tf.Variable(initial_value=np.identity(784), dtype=tf.float32)
+
+        # Create localisation network and convolutional layer
+        with tf.variable_scope('spatial_transformer_0'):
+            initial = np.array([[1, 0, 0], [0, 1, 0]])
+            initial = initial.astype('float32')
+            initial = initial.flatten()
+
+            theta = tf.Variable(initial_value=initial, name='theta')
+            h_fc1 = tf.zeros([1, 6]) + theta  # takes advantage of TF's broadcasting
+            h_trans = transformer(x, h_fc1, (28, 28))
+
         W = tf.Variable(tf.zeros([784, 10]))
         b = tf.Variable(tf.zeros([10]))
 
-        transformed_x = tf.matmul(x, transform)
+        transformed_x = tf.placeholder(tf.float32, [None, 784])
         y = tf.nn.softmax(tf.matmul(transformed_x, W) + b)
         # how to do categorical entropy?
         cross_entropy = tf.reduce_mean(-tf.reduce_sum(y * tf.log(y),
@@ -55,8 +65,7 @@ class SpatiallyInvariantNetwork:
 
         opt = tf.train.GradientDescentOptimizer(10 ** -2)
         grads_and_vars = opt.compute_gradients(cross_entropy,
-                                               var_list=[transform])
-
+                                               var_list=[theta])
 
         self.train_step = opt.minimize(cross_entropy)
         # self.train_step = opt.apply_gradients(grads_and_vars)
@@ -71,33 +80,60 @@ class SpatiallyInvariantNetwork:
         self.y_ = y_
         self.sess = sess
         self.grads_and_vars = grads_and_vars
-        self.transform = transform
+        self.h_trans = h_trans
+        self.transformed_x = transformed_x
 
 
     def run(self, x_train, y_train):
         """Trains the T layer of the model."""
         print 'train'
-        print self.sess.run(self.transform)
-        with self.sess.as_default():
-            for i in range(100):
-                self.train_step.run(feed_dict={self.x: [x_train], self.y_: [y_train]})
-        print self.sess.run(self.transform)
+        # print self.sess.run(self.transform)
+        # with self.sess.as_default():
+            # for i in range(100):
+                # self.train_step.run(feed_dict={self.x: [x_train], self.y_: [y_train]})
+        # print self.sess.run(self.transform)
 
 
     def evaluate(self, x_test, y_test):
         """Evaluates the model."""
+        x = self.x
         y = self.y
         y_ = self.y_
+        h_trans = self.h_trans
+        transformed_x = self.transformed_x
         print 'evaluate'
 
+        x_test = x_test.reshape(1, 28, 28, 1)  # why this shape?
+
+        x_prime = self.sess.run(h_trans, feed_dict={x: x_test})
+
+        plt.imshow(x_prime.reshape((28, 28)), cmap='gray', interpolation='none')
+
+        x_prime = x_prime.reshape(1, 784)  # this forces batches of size 1
+
+        prediction = tf.argmax(y,1)
+        y_out = self.sess.run(
+            prediction,
+            feed_dict={
+                transformed_x: x_prime,
+                y_: [y_test],
+            })
+        plt.title('Predicted value: {}'.format(y_out))
+        plt.show()
+
         correct_prediction = tf.equal(tf.argmax(y,1), tf.argmax(y_,1))
-        accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-        print(accuracy.eval(feed_dict={self.x: [x_test], self.y_: [y_test]}))
-        print y.eval(feed_dict={self.x: [x_test], self.y_: [y_test]})
-        print self.sess.run(self.transform)
+        print self.sess.run(
+            correct_prediction,
+            feed_dict={
+                transformed_x: x_prime,
+                y_: [y_test],
+            })
+        # accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+        # print(accuracy.eval(feed_dict={self.x: [x_test], self.y_: [y_test]}))
+        # print y.eval(feed_dict={self.x: [x_test], self.y_: [y_test]})
 
 
-# sin = SpatiallyInvariantNetwork()
+sin = SpatiallyInvariantNetwork()
 # # x_train, y_train, x_test, y_test = load_data()
 # # ex = (x_test[0], y_test[0])
 ex = None
@@ -110,28 +146,4 @@ with open('objs.pickle') as f:
 # plt.show()
 
 # # sin.run(ex[0], ex[1])
-# sin.evaluate(ex[0], ex[1])
-
-
-im = ex[0]
-im = im.reshape(1, 28, 28, 1)  # why this shape?
-
-x = tf.placeholder(tf.float32, [None, 28, 28, 1])
-x = tf.cast(im, 'float32')
-# Create localisation network and convolutional layer
-with tf.variable_scope('spatial_transformer_0'):
-    initial = np.array([[1, -.6763, 0], [0, 1, 0]])
-    initial = initial.astype('float32')
-    initial = initial.flatten()
-
-    theta = tf.Variable(initial_value=initial, name='theta')
-    h_fc1 = tf.zeros([1, 6]) + theta  # takes advantage of TF's broadcasting
-    h_trans = transformer(x, h_fc1, (28, 28))
-
-# Run session
-sess = tf.Session()
-sess.run(tf.initialize_all_variables())
-y = sess.run(h_trans, feed_dict={x: im})
-
-plt.imshow(y[0].reshape(28, 28), cmap='gray', interpolation='none')
-plt.show()
+sin.evaluate(ex[0], ex[1])
