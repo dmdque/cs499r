@@ -5,39 +5,26 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 
-amat = imp.load_source('amat', '../amat.py')
-from amat import AMat
-spatial_transformer = imp.load_source('spatial_transformer', '../../spatial-transformer-tensorflow/spatial_transformer.py')
+spatial_transformer = imp.load_source(
+    'spatial_transformer',
+    '../../spatial-transformer-tensorflow/spatial_transformer.py')
 from spatial_transformer import transformer
 
-
-def augment_label(y_in):
-    """Converts label from single label to vector label.
-    Converts from size (1, 1) to (1, 10).
-    eg.
-        [4] -> [0, 0, 0, 1, 0, 0, 0, 0, 0]
-    """
-    new_y_train = np.zeros((y_in.shape[0], 10))
-    for i, y in enumerate(new_y_train):
-        label = y_in[i][0]
-        new_y_train[i][label] = 1
-    return new_y_train
+DISPLAY_PLOTS = False
 
 
-def load_data():
-    train_data = AMat('mnist-rot/mnist_all_rotation_normalized_float_train_valid.amat').all
-    test_data = AMat('mnist-rot/mnist_all_rotation_normalized_float_test.amat').all
-    # note: last entry is label
-    x_train, y_train = train_data[:, :-1], train_data[:, -1:]
-    x_test, y_test = test_data[:, :-1], test_data[:, -1:]
-    y_train = augment_label(y_train)
-    y_test = augment_label(y_test)
-    return x_train, y_train, x_test, y_test
+def load_data_from_pickle(fname):
+    print 'Begin loading data.'
+    with open(fname) as f:
+        data = pickle.load(f)
+        print 'Finished loading data.'
+        return data
 
 
 class SpatiallyInvariantNetwork:
     def __init__(self):
         """Initializes the model and loads variables from file."""
+        print 'Begin setup.'
         sess = tf.InteractiveSession()
 
         x = tf.placeholder(tf.float32, [None, 28, 28, 1])
@@ -84,6 +71,7 @@ class SpatiallyInvariantNetwork:
         self.transformed_x = transformed_x
         self.train_step = train_step
         self.theta = theta
+        print 'Finished setup.'
 
 
     def run(self, x_train, y_train):
@@ -105,7 +93,6 @@ class SpatiallyInvariantNetwork:
         theta = self.theta
         transformed_x = self.transformed_x
         sess = self.sess
-        print 'evaluate'
 
         # reset theta before testing again
         initial = np.array([[1, 0, 0], [0, 1, 0]])
@@ -120,37 +107,27 @@ class SpatiallyInvariantNetwork:
         for i in range(10):
             x_test = x_test.reshape(1, 28, 28, 1)  # why this shape?
 
-            print 'theta', self.sess.run(theta, feed_dict={x: x_test})
-            x_prime = self.sess.run(h_trans, feed_dict={x: x_test})
-
-            x_prime = x_prime.reshape(1, 784)  # this forces batches of size 1
-            print 'y', self.sess.run(
-                y,
-                feed_dict={
-                    x: x_test,
-                    y_: [y_test],
-                })
-
             self.train_step.run(
                 feed_dict={
                     x: x_test,
                     y_: [y_test],
                 })
 
-        prediction = tf.argmax(y,1)
-        y_out = self.sess.run(
-            prediction,
-            feed_dict={
-                x: x_test,
-                y_: [y_test],
-            })
+        if DISPLAY_PLOTS:
+            prediction = tf.argmax(y,1)
+            y_out = self.sess.run(
+                prediction,
+                feed_dict={
+                    x: x_test,
+                    y_: [y_test],
+                })
 
-        # x_prime = self.sess.run(h_trans, feed_dict={x: x_test})
-        # f, axarr = plt.subplots(2, sharey=True)
-        # axarr[0].imshow(x_test.reshape((28, 28)), cmap='gray', interpolation='none')
-        # axarr[1].imshow(x_prime.reshape((28, 28)), cmap='gray', interpolation='none')
-        # plt.title('Actual value: {}, Predicted value: {}'.format(np.argmax(y_test), y_out))
-        # plt.show()
+            x_prime = self.sess.run(h_trans, feed_dict={x: x_test})
+            f, axarr = plt.subplots(2, sharey=True)
+            axarr[0].imshow(x_test.reshape((28, 28)), cmap='gray', interpolation='none')
+            axarr[1].imshow(x_prime.reshape((28, 28)), cmap='gray', interpolation='none')
+            plt.title('Actual value: {}, Predicted value: {}'.format(np.argmax(y_test), y_out))
+            plt.show()
 
         correct_prediction = tf.equal(tf.argmax(y,1), tf.argmax(y_,1))
         is_correct = self.sess.run(
@@ -165,29 +142,21 @@ class SpatiallyInvariantNetwork:
         # print y.eval(feed_dict={self.x: [x_test], self.y_: [y_test]})
         return is_correct
 
+def main():
+    sin = SpatiallyInvariantNetwork()
+    x_train, y_train, x_test, y_test = load_data_from_pickle('mnist-rot-2000.pickle')
 
-sin = SpatiallyInvariantNetwork()
-x_train, y_train, x_test, y_test = load_data()
-# ex = (x_test[0], y_test[0])
-ex = None
-with open('objs.pickle') as f:
-    ex = pickle.load(f)
+    num_correct = 0
+    num_examples = min(200, 50000)
+    for i in range(200):
+        print '{} of {}'.format(i, num_examples)
+        if sin.evaluate(x_test[i], y_test[i]):
+            num_correct += 1
 
-# T = np.diag(np.random.rand(784))
-# xt = np.matrix(ex[0]) * T
-# plt.imshow(xt.reshape(28, 28), cmap='gray', interpolation='none')
-# plt.show()
+    print 'correct: {} out of {}. {}%'.format(
+        num_correct,
+        len(x_test),
+        float(num_correct) / num_examples)
 
-# plt.imshow(ex[0].reshape(28, 28), cmap='gray', interpolation='none')
-# plt.show()
-
-# # sin.run(ex[0], ex[1])
-num_correct = 0
-for i in range(len(x_test)):
-    if sin.evaluate(x_test[i], y_test[i]):
-        num_correct += 1
-
-print 'correct: {} out of {}. {}%'.format(
-    num_correct,
-    len(x_test),
-    float(num_correct) / len(x_test))
+if __name__ == '__main__':
+    main()
