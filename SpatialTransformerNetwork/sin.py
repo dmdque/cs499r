@@ -10,7 +10,7 @@ spatial_transformer = imp.load_source(
     '../../spatial-transformer-tensorflow/spatial_transformer.py')
 from spatial_transformer import transformer
 
-DISPLAY_PLOTS = False
+DISPLAY_PLOTS = True
 
 
 def load_data_from_pickle(fname):
@@ -104,6 +104,16 @@ class SpatiallyInvariantNetwork:
         # Intermediate values:
         # x_prime
 
+        if DISPLAY_PLOTS:
+            orig_y_out = self.sess.run(
+                y,
+                feed_dict={
+                    x: x_test.reshape(1, 28, 28, 1),
+                    y_: [y_test],
+                })
+            orig_pred = np.argmax(orig_y_out)
+            orig_confidence = np.max(orig_y_out)
+
         for i in range(10):
             x_test = x_test.reshape(1, 28, 28, 1)  # why this shape?
 
@@ -114,19 +124,33 @@ class SpatiallyInvariantNetwork:
                 })
 
         if DISPLAY_PLOTS:
-            prediction = tf.argmax(y,1)
             y_out = self.sess.run(
-                prediction,
+                y,
                 feed_dict={
                     x: x_test,
                     y_: [y_test],
                 })
+            prediction = np.argmax(y_out)
+            confidence = np.max(y_out)
 
+            index = np.arange(10)
             x_prime = self.sess.run(h_trans, feed_dict={x: x_test})
-            f, axarr = plt.subplots(2, sharey=True)
-            axarr[0].imshow(x_test.reshape((28, 28)), cmap='gray', interpolation='none')
-            axarr[1].imshow(x_prime.reshape((28, 28)), cmap='gray', interpolation='none')
-            plt.title('Actual value: {}, Predicted value: {}'.format(np.argmax(y_test), y_out))
+            # f, axarr = plt.subplots(3, sharey=True)
+            ax1 = plt.subplot(221)
+            ax1.imshow(x_test.reshape((28, 28)), cmap='gray', interpolation='none')
+            ax1.set_title('Original, y={}, orig classification={}, orig confidence={}'.format(np.argmax(y_test), orig_pred, orig_confidence))
+
+            ax2 = plt.subplot(222)
+            ax2.imshow(x_prime.reshape((28, 28)), cmap='gray', interpolation='none')
+            ax2.set_title('Transformed, prediction={}, confidence={}'.format(prediction, confidence))
+
+            ax3 = plt.subplot(223)
+            ax3.bar(index, orig_y_out[0])
+            ax3.set_ylim([0, 1])
+
+            ax4 = plt.subplot(224)
+            ax4.bar(index, y_out[0])
+            ax4.set_ylim([0, 1])
             plt.show()
 
         correct_prediction = tf.equal(tf.argmax(y,1), tf.argmax(y_,1))
@@ -147,8 +171,8 @@ def main():
     x_train, y_train, x_test, y_test = load_data_from_pickle('mnist-rot-2000.pickle')
 
     num_correct = 0
-    num_examples = min(200, 50000)
-    for i in range(200):
+    num_examples = min(1000, 50000)
+    for i in range(num_examples):
         print '{} of {}'.format(i, num_examples)
         if sin.evaluate(x_test[i], y_test[i]):
             num_correct += 1
@@ -156,7 +180,17 @@ def main():
     print 'correct: {} out of {}. {}%'.format(
         num_correct,
         len(x_test),
-        float(num_correct) / num_examples)
+        float(num_correct) * 100 / num_examples)
 
 if __name__ == '__main__':
     main()
+
+
+    # other paper that shows small changes
+        # http://cs231n.stanford.edu/reports2016/119_Report.pdf
+    # try another objective?
+    # non convex - can't switch class?
+    # change number of iterations
+    # restrict to rotations
+
+# graph distributions
