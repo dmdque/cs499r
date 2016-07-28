@@ -10,7 +10,10 @@ spatial_transformer = imp.load_source(
     '../../spatial-transformer-tensorflow/spatial_transformer.py')
 from spatial_transformer import transformer
 
+# Feature flags
 DISPLAY_PLOTS = True
+RESTRICT_ROTATE = True
+THETA_TRAIN_ITERATIONS = 200
 
 
 def load_data_from_pickle(fname):
@@ -33,12 +36,21 @@ class SpatiallyInvariantNetwork:
 
         # Create localisation network and convolutional layer
         with tf.variable_scope('spatial_transformer_0'):
-            initial = np.array([[1, 0, 0], [0, 1, 0]])
-            initial = initial.astype('float32')
-            initial = initial.flatten()
+            if RESTRICT_ROTATE:
+                initial = 0.0
+                theta = tf.Variable(initial_value=initial, name='theta')
+                sin = tf.sin(theta)
+                cos = tf.cos(theta)
+                # rot_matrix = tf.constant([[cos, -sin, 0], [sin, cos, 0]])
+                rot_matrix = [cos, -sin, tf.constant(0.0), sin, cos, tf.constant(0.0)]
+            else:
+                initial = np.array([[1, 0, 0], [0, 1, 0]])
+                initial = initial.astype('float32')
+                initial = initial.flatten()
+                theta = tf.Variable(initial_value=initial, name='theta')
+                rot_matrix = tf.identity(theta)
 
-            theta = tf.Variable(initial_value=initial, name='theta')
-            h_fc1 = tf.zeros([1, 6]) + theta  # takes advantage of TF's broadcasting
+            h_fc1 = tf.zeros([1, 6]) + rot_matrix  # takes advantage of TF's broadcasting
             h_trans = transformer(x, h_fc1, (28, 28))
 
         W = tf.Variable(tf.zeros([784, 10]))
@@ -95,9 +107,12 @@ class SpatiallyInvariantNetwork:
         sess = self.sess
 
         # reset theta before testing again
-        initial = np.array([[1, 0, 0], [0, 1, 0]])
-        initial = initial.astype('float32')
-        initial = initial.flatten()
+        if RESTRICT_ROTATE:
+            initial = 0.0
+        else:
+            initial = np.array([[1, 0, 0], [0, 1, 0]])
+            initial = initial.astype('float32')
+            initial = initial.flatten()
         assign_op = theta.assign(initial)
         self.sess.run(assign_op)
 
@@ -114,7 +129,7 @@ class SpatiallyInvariantNetwork:
             orig_pred = np.argmax(orig_y_out)
             orig_confidence = np.max(orig_y_out)
 
-        for i in range(10):
+        for i in range(THETA_TRAIN_ITERATIONS):
             x_test = x_test.reshape(1, 28, 28, 1)  # why this shape?
 
             self.train_step.run(
@@ -186,11 +201,15 @@ if __name__ == '__main__':
     main()
 
 
+# todo:
     # other paper that shows small changes
         # http://cs231n.stanford.edu/reports2016/119_Report.pdf
     # try another objective?
     # non convex - can't switch class?
     # change number of iterations
-    # restrict to rotations
+    # *flip dataset
+    # use more complex main network
 
-# graph distributions
+# done:
+    # graph distributions
+    # restrict to rotations
