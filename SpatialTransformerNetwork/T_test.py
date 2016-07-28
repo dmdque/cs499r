@@ -22,7 +22,12 @@ T = np.matrix(
      [0, 0, 0, 0, 0, 0, 1, 0, 0]])
 
 y = x * T
-y = np.reshape(y, (3, 3))
-print xo
-print T
-print y
+yout = np.reshape(y, (3, 3))
+print 'x initial:\n', xo
+print 'transformation T:\n', T
+print 'y:\n', yout
+
+y = y * T
+print np.reshape(y, (3, 3))
+y = y * T
+print np.reshape(y, (3, 3))
