@@ -96,7 +96,7 @@ class SpatiallyInvariantNetwork:
         # print self.sess.run(self.transform)
 
 
-    def evaluate(self, x_test, y_test):
+    def evaluate(self, x_test, y_test, num):
         """Evaluates the model."""
         x = self.x
         y = self.y
@@ -151,22 +151,27 @@ class SpatiallyInvariantNetwork:
             index = np.arange(10)
             x_prime = self.sess.run(h_trans, feed_dict={x: x_test})
             # f, axarr = plt.subplots(3, sharey=True)
+
+
             ax1 = plt.subplot(221)
             ax1.imshow(x_test.reshape((28, 28)), cmap='gray', interpolation='none')
-            ax1.set_title('Original, y={}, orig classification={}, orig confidence={}'.format(np.argmax(y_test), orig_pred, orig_confidence))
+            ax1.set_title('Original, y={}, y1={}, c1={:5.4f}'.format(np.argmax(y_test), orig_pred, orig_confidence))
 
             ax2 = plt.subplot(222)
             ax2.imshow(x_prime.reshape((28, 28)), cmap='gray', interpolation='none')
-            ax2.set_title('Transformed, prediction={}, confidence={}'.format(prediction, confidence))
+            ax2.set_title('Transformed, yn={}, cn={:5.4f}'.format(prediction, confidence))
 
             ax3 = plt.subplot(223)
+            ax3.cla()
             ax3.bar(index, orig_y_out[0])
             ax3.set_ylim([0, 1])
 
             ax4 = plt.subplot(224)
+            ax4.cla()
             ax4.bar(index, y_out[0])
             ax4.set_ylim([0, 1])
-            plt.show()
+            plt.savefig('figures/sin{}.png'.format(num))
+            # plt.show()
 
         correct_prediction = tf.equal(tf.argmax(y,1), tf.argmax(y_,1))
         is_correct = self.sess.run(
@@ -186,10 +191,11 @@ def main():
     x_train, y_train, x_test, y_test = load_data_from_pickle('mnist-rot-2000.pickle')
 
     num_correct = 0
-    num_examples = min(1000, 50000)
+    num_examples = min(100, 50000)
     for i in range(num_examples):
         print '{} of {}'.format(i, num_examples)
-        if sin.evaluate(x_test[i], y_test[i]):
+        x_test[i] = x_test[i].reshape((28, 28)).transpose().reshape(784,)  # flip image
+        if sin.evaluate(x_test[i], y_test[i], i):
             num_correct += 1
 
     print 'correct: {} out of {}. {}%'.format(
