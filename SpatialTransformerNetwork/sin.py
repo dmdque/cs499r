@@ -1,5 +1,6 @@
 import imp
 import pickle
+from datetime import datetime
 
 import numpy as np
 import tensorflow as tf
@@ -13,7 +14,8 @@ from spatial_transformer import transformer
 # Feature flags
 DISPLAY_PLOTS = True
 RESTRICT_ROTATE = True
-THETA_TRAIN_ITERATIONS = 200
+MAX_THETA_TRAIN_ITERATIONS = 1000
+TOLERANCE = 10 ** -4
 
 
 def load_data_from_pickle(fname):
@@ -81,6 +83,7 @@ class SpatiallyInvariantNetwork:
         self.grads_and_vars = grads_and_vars
         self.h_trans = h_trans
         self.transformed_x = transformed_x
+        self.cross_entropy = cross_entropy
         self.train_step = train_step
         self.theta = theta
         print 'Finished setup.'
@@ -129,8 +132,20 @@ class SpatiallyInvariantNetwork:
             orig_pred = np.argmax(orig_y_out)
             orig_confidence = np.max(orig_y_out)
 
-        for i in range(THETA_TRAIN_ITERATIONS):
+        last_ce = 0
+        for i in range(MAX_THETA_TRAIN_ITERATIONS):
             x_test = x_test.reshape(1, 28, 28, 1)  # why this shape?
+
+            ce = self.sess.run(
+                self.cross_entropy,
+                feed_dict={
+                    x: x_test,
+                    y_: [y_test],
+                })
+            if abs(ce - last_ce) < TOLERANCE or i == MAX_THETA_TRAIN_ITERATIONS - 1:
+                print '{} iterations, delta ent: {}'.format(i, abs(ce - last_ce))
+                break
+            last_ce = ce
 
             self.train_step.run(
                 feed_dict={
@@ -170,7 +185,7 @@ class SpatiallyInvariantNetwork:
             ax4.cla()
             ax4.bar(index, y_out[0])
             ax4.set_ylim([0, 1])
-            plt.savefig('figures/sin{}.png'.format(num))
+            plt.savefig('figures-test/sin{}.png'.format(num))
             # plt.show()
 
         correct_prediction = tf.equal(tf.argmax(y,1), tf.argmax(y_,1))
@@ -193,7 +208,8 @@ def main():
     num_correct = 0
     num_examples = min(100, 50000)
     for i in range(num_examples):
-        print '{} of {}'.format(i, num_examples)
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        print '[{}] Evaluating {} of {}'.format(timestamp, i, num_examples)
         x_test[i] = x_test[i].reshape((28, 28)).transpose().reshape(784,)  # flip image
         if sin.evaluate(x_test[i], y_test[i], i):
             num_correct += 1
@@ -211,11 +227,11 @@ if __name__ == '__main__':
     # other paper that shows small changes
         # http://cs231n.stanford.edu/reports2016/119_Report.pdf
     # try another objective?
-    # non convex - can't switch class?
-    # change number of iterations
-    # *flip dataset
+    # non convex - can't switch class? -- seen some examples where it does (sin85.png)
+    # change number of iterations for training theta to a threshold
     # use more complex main network
 
 # done:
     # graph distributions
     # restrict to rotations
+    # flip dataset
