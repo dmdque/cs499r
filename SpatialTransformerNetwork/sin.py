@@ -1,10 +1,13 @@
-import imp
-import pickle
 from datetime import datetime
+import imp
+import os
+import pickle
 
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
+
+from lenet import sin_lenet as lenet
 
 spatial_transformer = imp.load_source(
     'spatial_transformer',
@@ -15,7 +18,7 @@ from spatial_transformer import transformer
 DISPLAY_PLOTS = True
 RESTRICT_ROTATE = True
 MAX_THETA_TRAIN_ITERATIONS = 1000
-TOLERANCE = 10 ** -4
+TOLERANCE = 10 ** -5
 
 
 def load_data_from_pickle(fname):
@@ -55,11 +58,9 @@ class SpatiallyInvariantNetwork:
             h_fc1 = tf.zeros([1, 6]) + rot_matrix  # takes advantage of TF's broadcasting
             h_trans = transformer(x, h_fc1, (28, 28))
 
-        W = tf.Variable(tf.zeros([784, 10]))
-        b = tf.Variable(tf.zeros([10]))
-
         transformed_x = tf.reshape(h_trans, (1, 784))  # forces batch of size 1
-        y = tf.nn.softmax(tf.matmul(transformed_x, W) + b)
+        model, model_var_dict = lenet(transformed_x)
+        y = tf.nn.softmax(model)
         # how to do categorical entropy?
         cross_entropy = tf.reduce_mean(-tf.reduce_sum(y * tf.log(y),
                                        reduction_indices=[1]))
@@ -73,8 +74,8 @@ class SpatiallyInvariantNetwork:
         sess.run(tf.initialize_all_variables())
 
         # load from file
-        saver = tf.train.Saver({'W': W, 'b':b})
-        saver.restore(sess, 'beginner.ckpt')
+        saver = tf.train.Saver(model_var_dict)
+        saver.restore(sess, 'lenet-weak.ckpt')
 
         self.x = x
         self.y = y
@@ -235,3 +236,16 @@ if __name__ == '__main__':
     # graph distributions
     # restrict to rotations
     # flip dataset
+
+# random restart
+# cnn
+# x optimize for each class, then pick the best
+# stochastic gradient descent
+# try every rotation
+    # graph entropy for every rotation
+    # (try to figure out if problem is non-convex)
+
+
+    # evaluate list of stuff
+    # tensorboard
+    # merged, summary
