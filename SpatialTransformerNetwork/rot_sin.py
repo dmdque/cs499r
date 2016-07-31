@@ -4,14 +4,15 @@ import numpy as np
 import tensorflow as tf
 
 from dataset import load_mnist_data
-from lenet import lenet
+from models import lenet
 
 
-NUM_EXAMPLES = 100
+NUM_EXAMPLES = 10
 NUM_ROTATIONS = 360
 GRAPH_IMAGE_PD = False
 PLT_SAVEFIG = True
-MODEL = 'BEGINNER'
+MODEL = 'LENET'
+
 if MODEL == 'LENET':
     SAVEFIG_DIR = 'figures-lenet-rotations'
 elif MODEL == 'BEGINNER':
@@ -33,9 +34,9 @@ def model_simple():
     ckpt_fname = 'beginner.ckpt'
     x = tf.placeholder(tf.float32, [None, 28, 28, 1])
     y_ = tf.placeholder(tf.float32, shape=[None, 10])
-    x_p = tf.reshape(x, [1, 784])
     W = tf.Variable(tf.zeros([784, 10]))
     b = tf.Variable(tf.zeros([10]))
+    x_p = tf.reshape(x, [1, 784])
     y = tf.nn.softmax(tf.matmul(x_p, W) + b)
     cross_entropy = tf.reduce_mean(-tf.reduce_sum(y * tf.log(y),
                                    reduction_indices=[1]))
@@ -97,7 +98,9 @@ def main():
         plt4.imshow(x_test[i].reshape((28, 28)), cmap='gray', interpolation='none')
         plt4.axis('off')
         plt3.cla()
-        plt3.plot(entropy_vals)
+        entropy_vals = np.roll(entropy_vals, NUM_ROTATIONS / 2)
+        entropy_x_axis = range(-NUM_ROTATIONS / 2, NUM_ROTATIONS / 2)
+        plt3.plot(entropy_x_axis, entropy_vals)
         plt3.set_title('Entropy vs Angle')
         if PLT_SAVEFIG:
             plt.savefig('{}/fig{}.png'.format(SAVEFIG_DIR, i))
@@ -109,6 +112,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-# TODO:
-# use regular mnist instead of rotated! (means you can also remove transpose)

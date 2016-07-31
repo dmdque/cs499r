@@ -4,6 +4,19 @@ import tensorflow as tf
 import tensorflow.contrib.slim as slim
 
 
+def beginner(x):
+    ckpt_fname = 'beginner.ckpt'
+    W = tf.Variable(tf.zeros([784, 10]))
+    b = tf.Variable(tf.zeros([10]))
+    x_p = tf.reshape(x, [1, 784])
+    net = tf.matmul(x_p, W) + b
+    model_var_dict = {
+        'W': W,
+        'b': b,
+    }
+    return W, b, net, model_var_dict
+
+
 def sin_lenet(images):
     images = tf.reshape(images, (1, 28, 28, 1))
     net = slim.layers.conv2d(images, 20, [5,5], scope='conv1')
