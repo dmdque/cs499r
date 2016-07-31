@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 
-from dataset import load_data_from_pickle
+from dataset import load_mnist_data
 from lenet import lenet
 
 
@@ -11,35 +11,60 @@ NUM_EXAMPLES = 100
 NUM_ROTATIONS = 360
 GRAPH_IMAGE_PD = False
 PLT_SAVEFIG = True
+MODEL = 'BEGINNER'
+if MODEL == 'LENET':
+    SAVEFIG_DIR = 'figures-lenet-rotations'
+elif MODEL == 'BEGINNER':
+    SAVEFIG_DIR = 'figures-beginner-rotations'
+
 
 def model():
+    ckpt_fname = 'lenet-97.ckpt'
     x = tf.placeholder(tf.float32, [None, 28, 28, 1])
     y_ = tf.placeholder(tf.float32, shape=[None, 10])
     model, model_var_dict = lenet(x)
     y = tf.nn.softmax(model)
     cross_entropy = tf.reduce_mean(-tf.reduce_sum(y * tf.log(y),
                                    reduction_indices=[1]))
-    return y, model_var_dict, x, y_, cross_entropy
+    return y, model_var_dict, x, y_, cross_entropy, ckpt_fname
+
+
+def model_simple():
+    ckpt_fname = 'beginner.ckpt'
+    x = tf.placeholder(tf.float32, [None, 28, 28, 1])
+    y_ = tf.placeholder(tf.float32, shape=[None, 10])
+    x_p = tf.reshape(x, [1, 784])
+    W = tf.Variable(tf.zeros([784, 10]))
+    b = tf.Variable(tf.zeros([10]))
+    y = tf.nn.softmax(tf.matmul(x_p, W) + b)
+    cross_entropy = tf.reduce_mean(-tf.reduce_sum(y * tf.log(y),
+                                   reduction_indices=[1]))
+    model_var_dict = {
+        'W': W,
+        'b': b,
+    }
+    return x, y_, W, b, y, cross_entropy, model_var_dict, ckpt_fname
+
 
 def main():
-    x_train, y_train, x_test, y_test = load_data_from_pickle('mnist-rot-2000.pickle')
+    x_train, y_train, x_test, y_test = load_mnist_data()
 
-    y, model_var_dict, x, y_, cross_entropy = model()
+    if MODEL == 'LENET':
+        y, model_var_dict, x, y_, cross_entropy, ckpt_fname = model()
+    elif MODEL == 'BEGINNER':
+        x, y_, W, b, y, cross_entropy, model_var_dict, ckpt_fname = model_simple()
 
     sess = tf.InteractiveSession()
     sess.run(tf.initialize_all_variables())
     saver = tf.train.Saver(model_var_dict)
-    saver.restore(sess, 'lenet-97.ckpt')
+    saver.restore(sess, ckpt_fname)
     for i in range(NUM_EXAMPLES):
-        x_test[i] = (x_test[i]
-                     .reshape((28, 28))
-                     .transpose()
-                     .reshape(784,))
         if GRAPH_IMAGE_PD:
             plts = []
             for j in range(1, 2 * NUM_ROTATIONS + 1):
-                plts.append(plt.subplot(3, NUM_ROTATIONS, j))
-        plt3 = plt.subplot(3, 1, 3)
+                plts.append(plt.subplot(4, NUM_ROTATIONS, j))
+        plt3 = plt.subplot(4, 1, 3)
+        plt4 = plt.subplot(4, 4, 4)
         entropy_vals = []
         delta_angle = 360 / NUM_ROTATIONS
         for j in range(NUM_ROTATIONS):
@@ -67,11 +92,15 @@ def main():
                 plts[NUM_ROTATIONS + j].set_title('y={}'.format(np.argmax(prediction)))
                 plts[NUM_ROTATIONS + j].set_ylim([0, 1])
                 plts[NUM_ROTATIONS + j].set_xticks(range(10))
+        plt4.cla()
+        plt4.set_title('Original')
+        plt4.imshow(x_test[i].reshape((28, 28)), cmap='gray', interpolation='none')
+        plt4.axis('off')
         plt3.cla()
         plt3.plot(entropy_vals)
         plt3.set_title('Entropy vs Angle')
         if PLT_SAVEFIG:
-            plt.savefig('figures-lenet-rotations/fig{}.png'.format(i))
+            plt.savefig('{}/fig{}.png'.format(SAVEFIG_DIR, i))
             print 'Saved figure {} of {}'.format(i, NUM_EXAMPLES)
         else:
             plt.show()
@@ -80,3 +109,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+# TODO:
+# use regular mnist instead of rotated! (means you can also remove transpose)
