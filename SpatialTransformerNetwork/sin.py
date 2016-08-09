@@ -20,12 +20,13 @@ from spatial_transformer import transformer
 DISPLAY_PLOTS = True
 RESTRICT_ROTATE = True
 MAX_THETA_TRAIN_ITERATIONS = 1000
-MODEL = 'BEGINNER'
+MODEL = 'LENET'
 TOLERANCE = 10 ** -5
 NUM_EXAMPLES = min(100, 50000)
+SAVEFIG_DIR = 'figures-lenet-97'
 
 if MODEL == 'LENET':
-    MODEL_CKPT = 'lenet-weak.ckpt'
+    MODEL_CKPT = 'lenet-97.ckpt'
 elif MODEL == 'BEGINNER':
     MODEL_CKPT = 'beginner.ckpt'
 
@@ -161,7 +162,7 @@ class SpatiallyInvariantNetwork:
             ax3.set_ylim([0, 1])
             ax4.set_ylim([0, 1])
 
-            plt.savefig('figures-test/sin{}.png'.format(num))
+            plt.savefig('{}/sin{}.png'.format(SAVEFIG_DIR, num))
             # plt.show()
 
         return eval_correct_prediction
@@ -181,7 +182,7 @@ def main():
 
     print 'correct: {} out of {}. {}%'.format(
         num_correct,
-        len(x_test),
+        NUM_EXAMPLES,
         float(num_correct) * 100 / NUM_EXAMPLES)
 
 if __name__ == '__main__':
@@ -207,3 +208,14 @@ if __name__ == '__main__':
 
     # tensorboard
     # merged, summary
+
+# test for each class separately, use the best
+    # plot belief in each digit vs rotation
+# training
+# random restart
+# tuning hyper parameters
+    # james berkstra
+
+# reduce p of current classification
+    # reclassify
+    # non-random exploration

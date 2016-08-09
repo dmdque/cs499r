@@ -7,7 +7,7 @@ from dataset import load_mnist_data
 from models import lenet
 
 
-NUM_EXAMPLES = 10
+NUM_EXAMPLES = 100
 NUM_ROTATIONS = 360
 GRAPH_IMAGE_PD = False
 PLT_SAVEFIG = True
