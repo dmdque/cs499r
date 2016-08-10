@@ -11,7 +11,7 @@ from dataset import load_mnist_data_orig_format
 mnist = load_mnist_data_orig_format()
 
 SAVE_RESTORE = 'SAVE'
-NUM_TRAINING_EXAMPLES = 100
+NUM_TRAINING_EXAMPLES = 400
 MODEL = 'SMALL_FNN'
 
 if MODEL == 'LENET':
@@ -20,6 +20,9 @@ if MODEL == 'LENET':
 elif MODEL == 'SMALL_FNN':
     from models import small_fnn as model
     MODEL_CKPT = 'small_fnn.ckpt'
+elif MODEL == 'BEGINNER':
+    from models import beginner as model
+    MODEL_CKPT = 'beginner.ckpt'
 
 
 sess = tf.InteractiveSession()

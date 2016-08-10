@@ -24,7 +24,7 @@ MAX_THETA_TRAIN_ITERATIONS = 1000
 MODEL = 'SMALL_FNN'
 TOLERANCE = 10 ** -5
 NUM_EXAMPLES = min(100, 50000)
-SAVEFIG_DIR = 'figures-lenet-97'
+SAVEFIG_DIR = 'figures-test'
 
 if MODEL == 'LENET':
     MODEL_CKPT = 'lenet-97.ckpt'
