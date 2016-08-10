@@ -5,6 +5,7 @@ import tensorflow as tf
 
 from dataset import load_mnist_data
 from models import lenet
+from models import small_fnn
 
 
 NUM_EXAMPLES = 100
@@ -17,6 +18,20 @@ if MODEL == 'LENET':
     SAVEFIG_DIR = 'figures-lenet-rotations'
 elif MODEL == 'BEGINNER':
     SAVEFIG_DIR = 'figures-beginner-rotations'
+elif MODEL == 'SMALL_FNN':
+    SAVEFIG_DIR = 'figures-small-fnn-rotations'
+
+
+def model_small_fnn():
+    ckpt_fname = 'small_fnn.ckpt'
+    x = tf.placeholder(tf.float32, [None, 28, 28, 1])
+    y_ = tf.placeholder(tf.float32, shape=[None, 10])
+    y_ = tf.placeholder(tf.float32, shape=[None, 10])
+    model, model_var_dict = lenet(x)
+    y = tf.nn.softmax(model)
+    cross_entropy = tf.reduce_mean(-tf.reduce_sum(y * tf.log(y),
+                                   reduction_indices=[1]))
+    return y, model_var_dict, x, y_, cross_entropy, ckpt_fname
 
 
 def model():
@@ -54,6 +69,8 @@ def main():
         y, model_var_dict, x, y_, cross_entropy, ckpt_fname = model()
     elif MODEL == 'BEGINNER':
         x, y_, W, b, y, cross_entropy, model_var_dict, ckpt_fname = model_simple()
+    if MODEL == 'SMALL_FNN':
+        y, model_var_dict, x, y_, cross_entropy, ckpt_fname = model()
 
     sess = tf.InteractiveSession()
     sess.run(tf.initialize_all_variables())

@@ -58,6 +58,8 @@ saver = tf.train.Saver()
 saver.restore(sess, "/Users/danielque/git/cs499r/ex_model.ckpt")
 # sess.run(tf.initialize_all_variables())
 
+# x_prime = tf.py_func(transform_input, [theta, x], 
+# x_prime = tf.matmul(theta, x)
 y = tf.nn.softmax(tf.matmul(x,W) + b)
 cross_entropy = -tf.reduce_sum(y_*tf.log(y))
 train_step = tf.train.GradientDescentOptimizer(0.01).minimize(cross_entropy)

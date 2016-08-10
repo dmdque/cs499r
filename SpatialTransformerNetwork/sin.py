@@ -9,7 +9,8 @@ import matplotlib.pyplot as plt
 
 from dataset import load_data_from_pickle
 from models import beginner
-from models import sin_lenet as lenet
+from models import lenet
+from models import small_fnn
 
 spatial_transformer = imp.load_source(
     'spatial_transformer',
@@ -20,7 +21,7 @@ from spatial_transformer import transformer
 DISPLAY_PLOTS = True
 RESTRICT_ROTATE = True
 MAX_THETA_TRAIN_ITERATIONS = 1000
-MODEL = 'LENET'
+MODEL = 'SMALL_FNN'
 TOLERANCE = 10 ** -5
 NUM_EXAMPLES = min(100, 50000)
 SAVEFIG_DIR = 'figures-lenet-97'
@@ -29,6 +30,8 @@ if MODEL == 'LENET':
     MODEL_CKPT = 'lenet-97.ckpt'
 elif MODEL == 'BEGINNER':
     MODEL_CKPT = 'beginner.ckpt'
+elif MODEL == 'SMALL_FNN':
+    MODEL_CKPT = 'small_fnn.ckpt'
 
 
 def model_lenet():
@@ -48,32 +51,34 @@ def model_lenet():
         theta = tf.Variable(initial_value=initial, name='theta')
         rot_matrix = tf.identity(theta)
     h_fc1 = tf.zeros([1, 6]) + rot_matrix  # takes advantage of TF's broadcast
-    h_trans = transformer(x, h_fc1, (28, 28))
-    transformed_x = tf.reshape(h_trans, (1, 784))  # forces batch of size 1
+    transformed_x = transformer(x, h_fc1, (28, 28))
     if MODEL == 'LENET':
         net, model_var_dict = lenet(transformed_x)
     elif MODEL == 'BEGINNER':
+        transformed_x = tf.reshape(transformed_x, (1, 28, 28, 1))
         W, b, net, model_var_dict = beginner(transformed_x)
+    elif MODEL == 'SMALL_FNN':
+        transformed_x = tf.reshape(transformed_x, (1, 784))
+        net, model_var_dict = small_fnn(transformed_x)
     y = tf.nn.softmax(net)
     cross_entropy = tf.reduce_mean(-tf.reduce_sum(y * tf.log(y),
                                    reduction_indices=[1]))
     opt = tf.train.GradientDescentOptimizer(10 ** -2)
     train_step = opt.minimize(cross_entropy,
                               var_list=[theta])
-    return x, y_, theta, rot_matrix, h_fc1, h_trans, transformed_x, net, model_var_dict, y, cross_entropy, train_step
+    return x, y_, theta, rot_matrix, h_fc1, transformed_x, net, model_var_dict, y, cross_entropy, train_step
 
 
 class SpatiallyInvariantNetwork:
     def __init__(self):
         """Initializes the model and loads variables from file."""
         print 'Begin setup.'
-        x, y_, theta, rot_matrix, h_fc1, h_trans, transformed_x, net, model_var_dict, y, cross_entropy, train_step = model_lenet()
+        x, y_, theta, rot_matrix, h_fc1, transformed_x, net, model_var_dict, y, cross_entropy, train_step = model_lenet()
         sess = tf.InteractiveSession()
         sess.run(tf.initialize_all_variables())
         saver = tf.train.Saver(model_var_dict)
         saver.restore(sess, MODEL_CKPT)
         self.cross_entropy = cross_entropy
-        self.h_trans = h_trans
         self.sess = sess
         self.theta = theta
         self.train_step = train_step
@@ -94,7 +99,6 @@ class SpatiallyInvariantNetwork:
         x = self.x
         y = self.y
         y_ = self.y_
-        h_trans = self.h_trans
         theta = self.theta
         transformed_x = self.transformed_x
         sess = self.sess
@@ -136,8 +140,8 @@ class SpatiallyInvariantNetwork:
             last_ce = ce
 
         correct_prediction = tf.equal(tf.argmax(y,1), tf.argmax(y_,1))
-        eval_y, eval_h_trans, eval_correct_prediction = sess.run(
-            [y, h_trans, correct_prediction],
+        eval_y, eval_transformed_x, eval_correct_prediction = sess.run(
+            [y, transformed_x, correct_prediction],
             feed_dict={
                 x: x_test,
                 y_: [y_test],
@@ -151,7 +155,7 @@ class SpatiallyInvariantNetwork:
             ax3 = plt.subplot(223)
             ax4 = plt.subplot(224)
             ax1.imshow(x_test.reshape((28, 28)), cmap='gray', interpolation='none')
-            ax2.imshow(eval_h_trans.reshape((28, 28)), cmap='gray', interpolation='none')
+            ax2.imshow(eval_transformed_x.reshape((28, 28)), cmap='gray', interpolation='none')
             ax1.set_title('Original, y={}, y1={}, c1={:5.4f}'.format(np.argmax(y_test), np.argmax(orig_prediction), np.max(orig_prediction)))
             ax2.set_title('Transformed, yn={}, cn={:5.4f}'.format(np.argmax(eval_y), np.max(eval_y)))
 
@@ -169,6 +173,15 @@ class SpatiallyInvariantNetwork:
 
 
 def main():
+    print 'DISPLAY_PLOTS:', DISPLAY_PLOTS
+    print 'RESTRICT_ROTATE:', RESTRICT_ROTATE
+    print 'MAX_THETA_TRAIN_ITERATIONS:', MAX_THETA_TRAIN_ITERATIONS
+    print 'MODEL:', MODEL
+    print 'TOLERANCE:', TOLERANCE
+    print 'NUM_EXAMPLES:', NUM_EXAMPLES
+    print 'SAVEFIG_DIR:', SAVEFIG_DIR
+    print 'MODEL_CKPT:', MODEL_CKPT
+
     sin = SpatiallyInvariantNetwork()
     x_train, y_train, x_test, y_test = load_data_from_pickle('mnist-rot-2000.pickle')
 

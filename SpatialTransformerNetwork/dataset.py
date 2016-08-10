@@ -17,3 +17,9 @@ def load_mnist_data():
     x_test = mnist.train.images
     y_test = mnist.train.labels
     return x_train, y_train, x_test, y_test
+
+
+def load_mnist_data_orig_format():
+    from tensorflow.examples.tutorials.mnist import input_data
+    mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
+    return mnist

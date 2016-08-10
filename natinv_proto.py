@@ -2,12 +2,12 @@ from __future__ import absolute_import
 from __future__ import print_function
 
 import numpy as np
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import theano
 np.random.seed(1337)  # for reproducibility
 theano.config.openmp = True
 
-from scipy.misc import imresize
+# from scipy.misc import imresize
 
 from keras.datasets import mnist
 from keras.models import Sequential
