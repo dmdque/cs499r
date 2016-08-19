@@ -12,7 +12,7 @@ NUM_EXAMPLES = 100
 NUM_ROTATIONS = 360
 GRAPH_IMAGE_PD = False
 PLT_SAVEFIG = True
-MODEL = 'SMALL_FNN'
+MODEL = 'BEGINNER'
 LOG_CONFIDENCE = True
 
 if MODEL == 'LENET':
@@ -76,6 +76,8 @@ def main():
     saver = tf.train.Saver(model_var_dict)
     saver.restore(sess, ckpt_fname)
     confidence_matches = [0 for e in range(10)]
+    incorrect_confidence_diffs = []
+    correct_confidence_diffs = []
     for i in range(NUM_EXAMPLES):
         plts = []
         for j in range(1, 13):
@@ -109,10 +111,20 @@ def main():
         if LOG_CONFIDENCE:
             correct_prediction = np.argmax(y_case)
             print '[Example {}] Correct Prediction: {}'.format(i, correct_prediction)
-            confidence_match_helper = [np.max(confidence_vals[digit]) for digit in range(10)]  # max confidence over rotation
+            confidence_match_helper = [np.max(confidence_vals[digit]) for digit in range(10)]  # max confidence over rotation for each digit
             digit_confidence_order = np.argsort(confidence_match_helper)[::-1]  # reverse sorted
             correct_rank = np.where(digit_confidence_order==correct_prediction)[0][0]  # only interested in first occurrence (should only be one)
             confidence_matches[correct_rank] += 1
+            confidence_diff = abs(confidence_match_helper[correct_prediction] -
+                                  np.max(confidence_match_helper))
+            if correct_rank != 0:  # only do if it was incorrect
+                incorrect_confidence_diffs.append(confidence_diff)
+            else:
+                # if it was correct, how much did it beat the others by?
+                corr_conf_diff = (confidence_match_helper[digit_confidence_order[0]] -
+                                  confidence_match_helper[digit_confidence_order[1]])
+                correct_confidence_diffs.append(corr_conf_diff)
+
             print '[Example {}] Confidence matches so far: {}'.format(i, confidence_matches[0])
 
 
@@ -136,17 +148,29 @@ def main():
         if PLT_SAVEFIG:
             plt.savefig('{}/fig{}.png'.format(SAVEFIG_DIR, i))
             print 'Saved figure {} ({} total)'.format(i, NUM_EXAMPLES)
-        else:
-            plt.show()
-            break  # only show one
 
     if LOG_CONFIDENCE:
         print MODEL
         print 'Num Confidence Matches: {}/{}: {}'.format(confidence_matches[0], NUM_EXAMPLES, float(confidence_matches[0]) / NUM_EXAMPLES)
         print '{}'.format(confidence_matches)
         plt.clf()
-        plt.plot(range(10), confidence_matches)
-        plt.plot(range(10), np.cumsum(confidence_matches), 'r--')
+        plt1 = plt.subplot(3, 1, 1)
+        plt2 = plt.subplot(3, 1, 2)
+        plt3 = plt.subplot(3, 1, 3)
+        plt1.plot(range(1, 11), np.array(confidence_matches).astype(float) / NUM_EXAMPLES)
+        plt1.plot(range(1, 11), np.cumsum(np.array(confidence_matches).astype(float) / NUM_EXAMPLES), 'r--')
+        plt1.set_title('PDF & CDF of correct class being in top x of confidences')
+        plt1.set_xlabel('top k confidences')
+        plt2.plot(range(1, len(incorrect_confidence_diffs) + 1), incorrect_confidence_diffs, '*')
+        plt2.set_title('Confidence differences between correct class and max class')
+        plt2.set_xlabel('examples')
+        plt2.set_yscale('log')
+
+        plt3.plot(range(1, len(correct_confidence_diffs) + 1), correct_confidence_diffs, '*')
+        plt3.set_title('Confidence differences between correct class and second best, when corr class was highest conf')
+        plt3.set_xlabel('examples')
+        plt3.set_yscale('log')
+
         plt.savefig('{}/confidence-matches{}.png'.format(SAVEFIG_DIR, NUM_EXAMPLES))
 
 
