@@ -8,12 +8,13 @@ from models import lenet
 from models import small_fnn
 
 
-NUM_EXAMPLES = 20
+NUM_EXAMPLES = 100
 NUM_ROTATIONS = 360
 GRAPH_IMAGE_PD = False
 PLT_SAVEFIG = True
 SEPARATE_DIGITS = True
-MODEL = 'LENET'
+MODEL = 'SMALL_FNN'
+LOG_CONFIDENCE = True
 
 if MODEL == 'LENET':
     SAVEFIG_DIR = 'figures-lenet-rotations'
@@ -75,6 +76,7 @@ def main():
     sess.run(tf.initialize_all_variables())
     saver = tf.train.Saver(model_var_dict)
     saver.restore(sess, ckpt_fname)
+    confidence_matches = [0 for e in range(10)]
     for i in range(NUM_EXAMPLES):
         if SEPARATE_DIGITS:
             plts = []
@@ -88,7 +90,7 @@ def main():
                 angle = j * delta_angle
                 x_case = x_test[i].reshape((28, 28))
                 x_case = rotate(x_case, angle, reshape=False)
-                y_case = y_test[i]
+                y_case = y_test[i]  # rename for later conciseness
 
                 prediction, entropy = sess.run(
                     [y, cross_entropy],
@@ -105,11 +107,28 @@ def main():
             plts[0].set_title('Original')
             plts[0].imshow(x_test[i].reshape((28, 28)), cmap='gray', interpolation='none')
             plts[0].axis('off')
+
+            if LOG_CONFIDENCE:
+                correct_prediction = np.argmax(y_case)
+                print '[Example {}] Correct Prediction: {}'.format(i, correct_prediction)
+                confidence_match_helper = [np.max(confidence_vals[digit]) for digit in range(10)]  # max confidence over rotation
+                digit_confidence_order = np.argsort(confidence_match_helper)[::-1]  # reverse sorted
+                correct_rank = np.where(digit_confidence_order==correct_prediction)[0][0]  # only interested in first occurrence (should only be one)
+                confidence_matches[correct_rank] += 1
+                print '[Example {}] Confidence matches so far: {}'.format(i, confidence_matches[0])
+
+
             for digit in range(10):
                 plts[digit + 1].cla()
                 confidence_vals[digit] = np.roll(confidence_vals[digit], NUM_ROTATIONS / 2)
                 x_axis = range(-NUM_ROTATIONS / 2, NUM_ROTATIONS / 2)
                 plts[digit + 1].fill_between(x_axis, 0, confidence_vals[digit])
+                if LOG_CONFIDENCE:
+                    print '[Example {}] {}: {} {}'.format(
+                        i,
+                        digit,
+                        np.max(confidence_vals[digit]),
+                        np.argmax(confidence_vals[digit]))
                 plts[digit + 1].axis('off')
             plts[11].cla()
             entropy_vals = np.roll(entropy_vals, NUM_ROTATIONS / 2)
@@ -118,7 +137,7 @@ def main():
             plts[11].set_yticks([])
             if PLT_SAVEFIG:
                 plt.savefig('{}/fig{}.png'.format(SAVEFIG_DIR, i))
-                print 'Saved figure {} of {}'.format(i, NUM_EXAMPLES)
+                print 'Saved figure {} ({} total)'.format(i, NUM_EXAMPLES)
             else:
                 plt.show()
                 break  # only show one
@@ -171,6 +190,15 @@ def main():
             else:
                 plt.show()
                 break  # only show one
+
+    if LOG_CONFIDENCE:
+        print MODEL
+        print 'Num Confidence Matches: {}/{}: {}'.format(confidence_matches[0], NUM_EXAMPLES, float(confidence_matches[0]) / NUM_EXAMPLES)
+        print '{}'.format(confidence_matches)
+        plt.clf()
+        plt.plot(range(10), confidence_matches)
+        plt.plot(range(10), np.cumsum(confidence_matches), 'r--')
+        plt.savefig('{}/confidence-matches{}.png'.format(SAVEFIG_DIR, NUM_EXAMPLES))
 
 
 if __name__ == '__main__':
