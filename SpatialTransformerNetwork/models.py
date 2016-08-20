@@ -49,7 +49,7 @@ def lenet(images):
 
     Expected input shape: None, 784
     """
-    images = tf.reshape(images, [-1, 28, 28, 1])
+    images = tf.reshape(images, [-1, 28, 28, 1])  # let tf guess the first dimension
     net = slim.layers.conv2d(images, 20, [5,5], scope='conv1')
     net = slim.layers.max_pool2d(net, [2,2], scope='pool1')
     # net = slim.layers.conv2d(net, 50, [5,5], scope='conv2')

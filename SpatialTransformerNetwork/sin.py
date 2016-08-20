@@ -18,13 +18,16 @@ spatial_transformer = imp.load_source(
 from spatial_transformer import transformer
 
 # Feature flags
+NUM_TEST_EXAMPLES = 100
+NUM_TRAIN_EXAMPLES = 1000
+NUM_VALID_EXAMPLES = 20
 DISPLAY_PLOTS = True
 RESTRICT_ROTATE = True
 MAX_THETA_TRAIN_ITERATIONS = 1000
-MODEL = 'SMALL_FNN'
+MODEL = 'LENET'
 TOLERANCE = 10 ** -5
-NUM_EXAMPLES = min(100, 50000)
 SAVEFIG_DIR = 'figures-test'
+USE_PRETRAIN = False
 
 if MODEL == 'LENET':
     MODEL_CKPT = 'lenet-97.ckpt'
@@ -34,7 +37,12 @@ elif MODEL == 'SMALL_FNN':
     MODEL_CKPT = 'small_fnn.ckpt'
 
 
-def model_lenet():
+def model_sin():
+    """
+    Create model and return tensors necessary to run the model.
+
+    Creates both training and testing phase tensors.
+    """
     x = tf.placeholder(tf.float32, [None, 28, 28, 1])
     y_ = tf.placeholder(tf.float32, shape=[None, 10])
     if RESTRICT_ROTATE:
@@ -61,40 +69,95 @@ def model_lenet():
         transformed_x = tf.reshape(transformed_x, (1, 784))
         net, model_var_dict = small_fnn(transformed_x)
     y = tf.nn.softmax(net)
-    cross_entropy = tf.reduce_mean(-tf.reduce_sum(y * tf.log(y),
+
+    # test phase tensors
+    test_cross_entropy = tf.reduce_mean(-tf.reduce_sum(y * tf.log(y),
                                    reduction_indices=[1]))
-    opt = tf.train.GradientDescentOptimizer(10 ** -2)
-    train_step = opt.minimize(cross_entropy,
+    test_opt = tf.train.GradientDescentOptimizer(10 ** -2)
+    test_train_step = test_opt.minimize(test_cross_entropy,
                               var_list=[theta])
-    return x, y_, theta, rot_matrix, h_fc1, transformed_x, net, model_var_dict, y, cross_entropy, train_step
+    # train phase tensors
+    train_cross_entropy = tf.nn.softmax_cross_entropy_with_logits(y, y_)
+    train_opt = tf.train.GradientDescentOptimizer(10 ** -2)
+    theta_train_step = train_opt.minimize(train_cross_entropy,
+                              var_list=model_var_dict.values())
+
+    # return all tensors since references are required to run operations
+    return (x, y_, theta, rot_matrix, h_fc1, transformed_x, net,
+            model_var_dict, y, test_cross_entropy, test_train_step,
+            train_cross_entropy, train_opt, theta_train_step)
 
 
 class SpatiallyInvariantNetwork:
     def __init__(self):
         """Initializes the model and loads variables from file."""
         print 'Begin setup.'
-        x, y_, theta, rot_matrix, h_fc1, transformed_x, net, model_var_dict, y, cross_entropy, train_step = model_lenet()
+        x, y_, theta, rot_matrix, h_fc1, transformed_x, net, model_var_dict, y, test_cross_entropy, test_train_step, train_cross_entropy, train_opt, theta_train_step = model_sin()
         sess = tf.InteractiveSession()
         sess.run(tf.initialize_all_variables())
         saver = tf.train.Saver(model_var_dict)
-        saver.restore(sess, MODEL_CKPT)
-        self.cross_entropy = cross_entropy
+        if USE_PRETRAIN:
+            saver.restore(sess, MODEL_CKPT)
+
+        self.test_cross_entropy = test_cross_entropy
         self.sess = sess
         self.theta = theta
-        self.train_step = train_step
+        self.test_train_step = test_train_step
         self.transformed_x = transformed_x
         self.x = x
         self.y = y
         self.y_ = y_
+        self.train_cross_entropy = train_cross_entropy
+        self.train_opt = train_opt
+        self.theta_train_step = theta_train_step
         print 'Finished setup.'
 
 
     def run(self, x_train, y_train):
         """Trains the T layer of the model."""
-        pass
+        sess = self.sess
+        x = self.x
+        y = self.y
+        y_ = self.y_
+        theta = self.theta
+        train_cross_entropy = self.train_cross_entropy
+        train_opt = self.train_opt
+        theta_train_step = self.theta_train_step
+
+        # reset theta before testing again
+        if RESTRICT_ROTATE:
+            initial = 0.0
+        else:
+            initial = np.array([[1, 0, 0], [0, 1, 0]])
+            initial = initial.astype('float32')
+            initial = initial.flatten()
+        assign_op = theta.assign(initial)
+        sess.run(assign_op)
+
+        # Train theta
+        last_entropy = 0
+        for i in range(MAX_THETA_TRAIN_ITERATIONS):
+            x_train = x_train.reshape(1, 28, 28, 1)  # batch, width, height, channels
+            ts, curr_entropy = sess.run(
+                [theta_train_step, train_cross_entropy],
+                feed_dict={
+                    x: x_train,
+                    y_: [y_train],  # tensor isn't used in this phase
+                })
+            if abs(curr_entropy - last_entropy) < TOLERANCE:
+                break
+            last_entropy = curr_entropy
+
+        # Train main network
+        ts = sess.run(
+            theta_train_step,
+            feed_dict={
+                x: x_train,
+                y_: [y_train],
+            })
 
 
-    def evaluate(self, x_test, y_test, num):
+    def evaluate(self, x_test, y_test, num, is_validate=False):
         """Evaluates the model."""
         x = self.x
         y = self.y
@@ -102,8 +165,8 @@ class SpatiallyInvariantNetwork:
         theta = self.theta
         transformed_x = self.transformed_x
         sess = self.sess
-        cross_entropy = self.cross_entropy
-        train_step = self.train_step
+        test_cross_entropy = self.test_cross_entropy
+        test_train_step = self.test_train_step
 
         # reset theta before testing again
         if RESTRICT_ROTATE:
@@ -125,19 +188,20 @@ class SpatiallyInvariantNetwork:
             orig_prediction = orig_prediction[0]
 
         # Train theta
-        last_ce = 0
+        last_entropy = 0
         for i in range(MAX_THETA_TRAIN_ITERATIONS):
             x_test = x_test.reshape(1, 28, 28, 1)  # batch, width, height, channels
-            ts, ce = sess.run(
-                [train_step, cross_entropy],
+            ts, curr_entropy = sess.run(
+                [test_train_step, test_cross_entropy],
                 feed_dict={
                     x: x_test,
                     y_: [y_test],
                 })
-            if abs(ce - last_ce) < TOLERANCE or i == MAX_THETA_TRAIN_ITERATIONS - 1:
-                print '{} iterations, delta ent: {}'.format(i, abs(ce - last_ce))
+            if abs(curr_entropy - last_entropy) < TOLERANCE:
                 break
-            last_ce = ce
+            last_entropy = curr_entropy
+        else:
+            pass
 
         correct_prediction = tf.equal(tf.argmax(y,1), tf.argmax(y_,1))
         eval_y, eval_transformed_x, eval_correct_prediction = sess.run(
@@ -166,10 +230,30 @@ class SpatiallyInvariantNetwork:
             ax3.set_ylim([0, 1])
             ax4.set_ylim([0, 1])
 
-            plt.savefig('{}/sin{}.png'.format(SAVEFIG_DIR, num))
+            if is_validate:
+                plt.savefig('{}/sin{}.png'.format('figures-valid', num))
+            else:
+                plt.savefig('{}/sin{}.png'.format(SAVEFIG_DIR, num))
             # plt.show()
 
         return eval_correct_prediction
+
+
+def validate(sin, x_valid, y_valid, base_i=0):
+    print 'Validation'
+    num_correct = 0
+    for i in range(NUM_VALID_EXAMPLES):
+        x_valid_i = (x_valid[i]
+                     .reshape((28, 28))
+                     .transpose()
+                     .reshape(784,))  # flip image
+        if sin.evaluate(x_valid_i, y_valid[i], i + base_i, is_validate=True):
+            num_correct += 1
+
+    print '[Validation] correct: {} out of {}. {}%'.format(
+        num_correct,
+        NUM_VALID_EXAMPLES,
+        float(num_correct) * 100 / NUM_VALID_EXAMPLES)
 
 
 def main():
@@ -178,25 +262,49 @@ def main():
     print 'MAX_THETA_TRAIN_ITERATIONS:', MAX_THETA_TRAIN_ITERATIONS
     print 'MODEL:', MODEL
     print 'TOLERANCE:', TOLERANCE
-    print 'NUM_EXAMPLES:', NUM_EXAMPLES
+    print 'NUM_TEST_EXAMPLES:', NUM_TEST_EXAMPLES
     print 'SAVEFIG_DIR:', SAVEFIG_DIR
     print 'MODEL_CKPT:', MODEL_CKPT
 
     sin = SpatiallyInvariantNetwork()
     x_train, y_train, x_test, y_test = load_data_from_pickle('mnist-rot-2000.pickle')
+    # TODO: split a proper validation set
+    x_valid = x_test
+    y_valid = y_test
 
+    # Training phase
+    print 'Training phase'
+    for i in range(NUM_TRAIN_EXAMPLES):
+        if i % 10 == 0:
+            print 'Training on example {}'.format(i)
+        if i % 100 == 0:
+            validate(sin,
+                     x_valid[i:i + NUM_VALID_EXAMPLES],
+                     y_valid[i:i + NUM_VALID_EXAMPLES],
+                     base_i=i)
+        x_train_i = (x_train[i]
+                     .reshape((28, 28))
+                     .transpose()
+                     .reshape(784,))  # flip image
+        sin.run(x_train_i, y_train[i])
+
+    # Testing phase
+    print 'Testing phase'
     num_correct = 0
-    for i in range(NUM_EXAMPLES):
+    for i in range(NUM_TEST_EXAMPLES):
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        print '[{}] Evaluating {} of {}'.format(timestamp, i, NUM_EXAMPLES)
-        x_test[i] = x_test[i].reshape((28, 28)).transpose().reshape(784,)  # flip image
-        if sin.evaluate(x_test[i], y_test[i], i):
+        print '[{}] Evaluating {} of {}'.format(timestamp, i, NUM_TEST_EXAMPLES)
+        x_test_i = (x_test[i]
+                     .reshape((28, 28))
+                     .transpose()
+                     .reshape(784,))  # flip image
+        if sin.evaluate(x_test_i, y_test[i], i):
             num_correct += 1
 
     print 'correct: {} out of {}. {}%'.format(
         num_correct,
-        NUM_EXAMPLES,
-        float(num_correct) * 100 / NUM_EXAMPLES)
+        NUM_TEST_EXAMPLES,
+        float(num_correct) * 100 / NUM_TEST_EXAMPLES)
 
 if __name__ == '__main__':
     main()
