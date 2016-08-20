@@ -1,5 +1,19 @@
 # Spatially Invariant Networks (SIN)
 
+## Story
+The goal is to implement a spatially invariant neural network.
+
+The motivation is that as a human given the task of classifying an image that had been spatially perturbed (rotated, translated, skewed), we might look at the image from different angles in order to get a better understanding of what it is.
+For example, we have trouble recognizing upside down faces.
+
+By baking spatial invariance into the model, we theoretically maybe be able to train a smaller neural network which focuses only on classifying upright images. Additionally, it may save time in the training phase since training on an augmented dataset (as was made popular by [1]) would be unnecessary.
+
+All credit for this idea goes to Pascal Poupart.
+
+This projects includes an attempt to bring this idea to life. I implemented the testing phase using pretrained networks. Results weren't perfect, so we set out to investigate reasons why it might not be working.
+
+Spatial transformations have been limited to rotations as a proof of concept. Generalizing to the space of transformations given by a 2x3 matrix may be too large of a step though.
+
 ## Usage
 Modify the `MODEL` variable in `pretrain.py`, `sin.py`, and `rot_sin.py` to use the desired model.
 Also ensure that the `SAVE_RESTORE` variable in `pretrain.py` is set to `'SAVE'`.
@@ -27,3 +41,23 @@ Run:
 * `requirements.txt`
 * `rot_sin.py` graphs entropy and digit confidence over rotation.
 * `sin.py` classifies mnist-rot examples and graphs the learned transformations.
+
+
+## Credits
+None of this would be possible without the help of Pascal Poupart, Michael Noukhovitch, and Jason Sinn. Thank you for all your help!
+
+[1] https://papers.nips.cc/paper/4824-imagenet-classification-with-deep-convolutional-neural-networks.pdf
+https://github.com/daviddao/spatial-transformer-tensorflow:w
+
+
+## License
+MIT Licence.
+
+
+TODO:
+clean up files
+clean up code
+add some usage dogs
+add some screenshots
+write report
+  3 pages
