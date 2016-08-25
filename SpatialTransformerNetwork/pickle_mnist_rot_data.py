@@ -3,7 +3,7 @@ import pickle
 
 import numpy as np
 
-amat = imp.load_source('amat', '../amat.py')
+amat = imp.load_source('amat', 'amat.py')
 from amat import AMat
 
 
@@ -22,8 +22,8 @@ def augment_label(y_in):
 
 def load_data():
     print 'Begin loading data.'
-    train_data = AMat('mnist-rot/mnist_all_rotation_normalized_float_train_valid.amat').all
-    test_data = AMat('mnist-rot/mnist_all_rotation_normalized_float_test.amat').all
+    train_data = AMat('data/mnist-rot/mnist_all_rotation_normalized_float_train_valid.amat').all
+    test_data = AMat('data/mnist-rot/mnist_all_rotation_normalized_float_test.amat').all
     # note: last entry is label
     x_train, y_train = train_data[:, :-1], train_data[:, -1:]
     x_test, y_test = test_data[:, :-1], test_data[:, -1:]

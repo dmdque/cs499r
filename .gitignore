@@ -1,0 +1,10 @@
+*.pyc
+mnist-rot-5000.pickle
+mnist-rot-full.pickle
+figures/
+figures-test/
+figures-lenet-rotations/
+figures-beginner-rotations/
+figures-lenet-97/
+figures-small-fnn-rotations/
+figures-valid/
